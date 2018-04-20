@@ -8,12 +8,13 @@ from sppy import atomic_data
 class Molecule:
     '''
     Attributes:
-        xyz (np.array): 2D array of coordinates (default in angstroms).
-        atom (np.array): 1D array of atomic numbers.
-        mass (np.array): 1D array of masses.
+        xyz (ndarray): 2D array of coordinates (default in angstroms).
+        atom (ndarray): 1D array of atomic numbers.
+        mass (ndarray): 1D array of masses.
+        bonds (ndarray): 2D array of bonds.
     '''
 
-    def __init__(self, xyz, atom, mass=np.array([])):
+    def __init__(self, xyz, atom, mass=np.array([]), bonds=np.array([])):
         # TODO add conversion of lists to ndarrays
 
         self._xyz = xyz
@@ -38,22 +39,72 @@ class Molecule:
         else:
             self._mass = mass
 
+        # Bonds
+        self._bonds = bonds
 
 ################################################################################
 
-    def plot(self, ax):
+    def plot(self, ax, show_legend=False):
         '''Plot the molecule on the given axis'''
 
         # Set the color array for the atoms
         colors = []
         size = []
+        symbs = []
+
         for an in self._atom:
             colors.append(atomic_data.data[an][4])
-            size.append(atomic_data.data[an][5]**2/10)
+            size.append(atomic_data.data[an][5]*10)
+            symbs.append(atomic_data.data[an][1])
 
-        return ax.scatter(self._xyz[:,0], self._xyz[:,1], self._xyz[:,2],
-            c=colors,s=size, depthshade=False)
+        for i in range(self._bonds.shape[0]):
+            xs = np.zeros((2,)); ys = np.zeros((2,)); zs = np.zeros((2,))
 
+            xs[0] = self._xyz[self._bonds[i,0]][0]
+            xs[1] = self._xyz[self._bonds[i,1]][0]
+
+            ys[0] = self._xyz[self._bonds[i,0]][1]
+            ys[1] = self._xyz[self._bonds[i,1]][1]
+
+            zs[0] = self._xyz[self._bonds[i,0]][2]
+            zs[1] = self._xyz[self._bonds[i,1]][2]
+
+            ax.plot(xs, ys, zs, c='darkgray', linewidth=5, zorder=1)
+
+        # ax.scatter(self._xyz[:,0], self._xyz[:,1], self._xyz[:,2],
+        #     c=colors,s=size, depthshade=False, zorder=10, label=symbs)
+
+        # Plot the atoms one at a time to label them properly
+        for i in range(self._xyz.shape[0]):
+            # If the element has already been labelled, don't label it again
+            if symbs[i] in symbs[:i]:
+                ax.scatter(self._xyz[i,0], self._xyz[i,1], self._xyz[i,2],
+                    c=colors[i],s=size[i], depthshade=False, zorder=10)
+            else:
+                ax.scatter(self._xyz[i,0], self._xyz[i,1], self._xyz[i,2],
+                    c=colors[i],s=size[i], depthshade=False, zorder=10,
+                    label=symbs[i])
+
+        if show_legend:
+            legend = ax.legend(labelspacing=2) # Prevent overlapping symbols
+            legend.get_frame().set_facecolor('#00FFCC')
+            legend.get_frame().set_alpha(1)
+
+
+################################################################################
+
+    def get_bonds_by_distance(self, cutoff=1.6):
+        '''
+        Determine the bonded atoms by a distance provied. Cutoff is inclusive.
+        '''
+        bonds = []
+        for i in range(self._xyz.shape[0]):
+            for j in range(i+1,self._xyz.shape[0]):
+                r = la.norm(self._xyz[i]-self._xyz[j])
+                if r <= cutoff:
+                    bonds.append([i,j])
+
+        self._bonds = np.array(bonds)
 
 ################################################################################
 
@@ -182,6 +233,7 @@ if __name__ == '__main__':
     rotated_xyz = rotate_dihedral(4,6,2*np.pi/npts,npts,rotor,xyz)
 
     # ffmpeg -framerate 24 -i %d.png test.mpeg
+    n_repeats = 10
     i = 0
     for rxyz in rotated_xyz:
         fig = plt.figure(figsize=(5,5))
@@ -189,5 +241,8 @@ if __name__ == '__main__':
         ax.view_init(elev=20., azim=45)
         mol = Molecule(rxyz,atoms)
         mol.plot(ax)
-        plt.savefig("%d" % i)
-        i += 1
+
+        # Slowing down the framerate in ffmpeg can be a pain
+        for j in range(n_repeats):
+            plt.savefig("figures/%d" % i)
+            i += 1
