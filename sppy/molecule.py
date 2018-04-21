@@ -209,6 +209,38 @@ def rotate_dihedral(p1, p2, th, npts, rotor, xyz):
     return rotated_xyz
 ################################################################################
 
+def parse_pyscf_atom(atom):
+    '''
+    Parses the mol.atom attribute of PySCF molecule object to get the
+    coordinates and atoms and returns a Molecule object.
+
+    .. note::
+
+        Currently can only parse when mol.atom has the following form:
+
+        mol.atom = """
+        O 0. 0. 0.
+        H 0. 1. 0.
+        H 0. 0. 1.
+        """
+
+    atom (string): atom attribute of PySCF mol object
+    '''
+
+    atom_split = atom.split()
+    atoms = []
+    xyz = np.zeros(( int(len(atom_split)/4), 3 ))
+
+    for i in range(xyz.shape[0]):
+        atoms.append(atom_split[4*i])
+        xyz[i,0] = float(atom_split[4*i+1])
+        xyz[i,1] = float(atom_split[4*i+2])
+        xyz[i,2] = float(atom_split[4*i+3])
+
+    return Molecule(xyz,atoms)
+
+################################################################################
+
 
 
 if __name__ == '__main__':
